@@ -4,11 +4,12 @@
 ## Running Tests
 
 1. Install dependencies:
-   ```bash
-   npm install
-   ```
+    ```bash
+    npm install
+    ```
 
 2. Run the test suite:
-   ```bash
-   npm test
-   ```
+    ```bash
+    npm test
+    ```
+
