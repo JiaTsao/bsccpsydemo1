@@ -1128,6 +1128,7 @@
                 if (chartRef.current) {
                     if (chartInstanceRef.current) {
                         chartInstanceRef.current.destroy();
+                        chartInstanceRef.current = null;
                     }
                     const ctx = chartRef.current.getContext('2d');
                     
@@ -1178,6 +1179,7 @@
                 if (pieChartRef.current) {
                     if (pieChartInstanceRef.current) {
                         pieChartInstanceRef.current.destroy();
+                        pieChartInstanceRef.current = null;
                     }
                     const ctx = pieChartRef.current.getContext('2d');
                     
@@ -1213,8 +1215,14 @@
                 }
 
                 return () => {
-                    if (chartInstanceRef.current) chartInstanceRef.current.destroy();
-                    if (pieChartInstanceRef.current) pieChartInstanceRef.current.destroy();
+                    if (chartInstanceRef.current) {
+                        chartInstanceRef.current.destroy();
+                        chartInstanceRef.current = null;
+                    }
+                    if (pieChartInstanceRef.current) {
+                        pieChartInstanceRef.current.destroy();
+                        pieChartInstanceRef.current = null;
+                    }
                 };
             }, [clients, bookings]);
 
