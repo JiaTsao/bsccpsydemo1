@@ -419,24 +419,47 @@
             );
         };
 
-        const Login = ({ onLogin }) => {
-            const [role, setRole] = useState('admin');
+        const Login = ({ onLogin, users }) => {
+            const [username, setUsername] = useState('');
+            const [password, setPassword] = useState('');
+            const [error, setError] = useState('');
+
             const handleLogin = (e) => {
                 e.preventDefault();
-                onLogin(role);
+                const user = users.find(
+                    (u) => u.username === username && u.password === password
+                );
+                if (user) {
+                    onLogin(user);
+                } else {
+                    setError('帳號或密碼錯誤');
+                }
             };
+
             return (
                 <div className="content-section">
                     <h2>登入</h2>
                     <form onSubmit={handleLogin}>
                         <div className="form-group">
-                            <label>選擇角色</label>
-                            <select value={role} onChange={(e) => setRole(e.target.value)}>
-                                <option value="admin">管理員</option>
-                                <option value="therapist">心理師</option>
-                                <option value="client">個案</option>
-                            </select>
+                            <label>帳號</label>
+                            <input
+                                value={username}
+                                onChange={(e) => setUsername(e.target.value)}
+                                required
+                            />
                         </div>
+                        <div className="form-group">
+                            <label>密碼</label>
+                            <input
+                                type="password"
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                required
+                            />
+                        </div>
+                        {error && (
+                            <p style={{ color: 'red', marginBottom: '10px' }}>{error}</p>
+                        )}
                         <button type="submit" className="btn btn-primary">登入</button>
                     </form>
                 </div>
@@ -660,12 +683,12 @@
         };
 
         // 場地預約組件
-        const VenueBooking = ({ bookings, setBookings, clients, psychologists, showNotification }) => {
+        const VenueBooking = ({ bookings, setBookings, clients, psychologists, venues, showNotification }) => {
             const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
             const [selectedTime, setSelectedTime] = useState('');
             const [selectedClient, setSelectedClient] = useState('');
             const [selectedPsych, setSelectedPsych] = useState('');
-            const [selectedVenue, setSelectedVenue] = useState('諮商室A');
+            const [selectedVenue, setSelectedVenue] = useState(venues[0] || '');
             const [fee, setFee] = useState(2000);
             const [paid, setPaid] = useState(false);
             const [online, setOnline] = useState(false);
@@ -839,9 +862,9 @@
                                         value={selectedVenue}
                                         onChange={(e) => setSelectedVenue(e.target.value)}
                                     >
-                                        <option value="諮商室A">諮商室A</option>
-                                        <option value="諮商室B">諮商室B</option>
-                                        <option value="諮商室C">諮商室C</option>
+                                        {venues.map(v => (
+                                            <option key={v} value={v}>{v}</option>
+                                        ))}
                                     </select>
                                 </div>
 
@@ -1331,13 +1354,180 @@
             );
         };
 
+        // 個人預約(個案)顯示
+        const MyBookings = ({ bookings, user }) => {
+            const my = bookings.filter(b => b.clientName === user.name);
+            return (
+                <div>
+                    <h2>我的預約</h2>
+                    {my.length === 0 ? (
+                        <p style={{ textAlign: 'center', color: '#666' }}>尚無預約</p>
+                    ) : (
+                        my.map(b => (
+                            <div key={b.id} className="client-card">
+                                <p><strong>日期：</strong>{b.date}</p>
+                                <p><strong>時間：</strong>{b.time}</p>
+                                <p><strong>場地：</strong>{b.venue}</p>
+                                <p><strong>心理師：</strong>{b.psychologistName}</p>
+                            </div>
+                        ))
+                    )}
+                </div>
+            );
+        };
+
+        // 心理師預約列表及帳號設定
+        const TherapistSchedule = ({ bookings, user }) => {
+            const my = bookings.filter(b => b.psychologistName === user.name);
+            return (
+                <div>
+                    <h2>預約列表</h2>
+                    {my.length === 0 ? (
+                        <p style={{ textAlign: 'center', color: '#666' }}>尚無預約</p>
+                    ) : (
+                        my.map(b => (
+                            <div key={b.id} className="client-card">
+                                <p><strong>日期：</strong>{b.date}</p>
+                                <p><strong>時間：</strong>{b.time}</p>
+                                <p><strong>個案：</strong>{b.clientName}</p>
+                                <p><strong>場地：</strong>{b.venue}</p>
+                            </div>
+                        ))
+                    )}
+                </div>
+            );
+        };
+
+        const TherapistProfile = ({ user, setUsers, users, onUpdate }) => {
+            const [name, setName] = useState(user.name);
+            const [password, setPassword] = useState(user.password);
+            const handleSave = e => {
+                e.preventDefault();
+                const updated = { ...user, name, password };
+                setUsers(users.map(u => (u.id === user.id ? updated : u)));
+                onUpdate(updated);
+            };
+            return (
+                <form onSubmit={handleSave} className="content-section">
+                    <h3>帳號設定</h3>
+                    <div className="form-group">
+                        <label>姓名</label>
+                        <input value={name} onChange={e => setName(e.target.value)} />
+                    </div>
+                    <div className="form-group">
+                        <label>密碼</label>
+                        <input type="password" value={password} onChange={e => setPassword(e.target.value)} />
+                    </div>
+                    <button type="submit" className="btn btn-primary">儲存</button>
+                </form>
+            );
+        };
+
+        // 管理員用戶設定
+        const ManageUsers = ({ users, setUsers }) => {
+            const empty = { id: null, name: '', username: '', password: '', role: 'client' };
+            const [form, setForm] = useState(empty);
+
+            const handleSubmit = e => {
+                e.preventDefault();
+                if (form.id) {
+                    setUsers(users.map(u => (u.id === form.id ? form : u)));
+                } else {
+                    setUsers([...users, { ...form, id: Date.now() }]);
+                }
+                setForm(empty);
+            };
+
+            const handleEdit = u => setForm(u);
+            const handleDelete = id => {
+                if (confirm('確定刪除?')) setUsers(users.filter(u => u.id !== id));
+            };
+
+            return (
+                <div className="content-section">
+                    <h3>使用者資訊設定</h3>
+                    <form onSubmit={handleSubmit} style={{ marginBottom: '20px' }}>
+                        <div className="form-group">
+                            <label>姓名</label>
+                            <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} required />
+                        </div>
+                        <div className="form-group">
+                            <label>帳號</label>
+                            <input value={form.username} onChange={e => setForm({ ...form, username: e.target.value })} required />
+                        </div>
+                        <div className="form-group">
+                            <label>密碼</label>
+                            <input value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} required />
+                        </div>
+                        <div className="form-group">
+                            <label>角色</label>
+                            <select value={form.role} onChange={e => setForm({ ...form, role: e.target.value })}>
+                                <option value="admin">管理員</option>
+                                <option value="therapist">心理師</option>
+                                <option value="client">個案</option>
+                            </select>
+                        </div>
+                        <button type="submit" className="btn btn-primary">{form.id ? '更新' : '新增'}</button>
+                    </form>
+                    {users.map(u => (
+                        <div key={u.id} className="client-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div>
+                                <p><strong>{u.name}</strong> ({u.role})</p>
+                                <p>{u.username}</p>
+                            </div>
+                            <div>
+                                <button className="btn btn-primary" onClick={() => handleEdit(u)}>編輯</button>
+                                <button className="btn btn-danger" onClick={() => handleDelete(u.id)}>刪除</button>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            );
+        };
+
+        const ManageVenues = ({ venues, setVenues }) => {
+            const [newVenue, setNewVenue] = useState('');
+            const add = () => {
+                if (!newVenue) return;
+                setVenues([...venues, newVenue]);
+                setNewVenue('');
+            };
+            const remove = v => {
+                if (confirm('確定刪除?')) setVenues(venues.filter(x => x !== v));
+            };
+            return (
+                <div className="content-section">
+                    <h3>場地設定</h3>
+                    <div className="form-group" style={{ display: 'flex', gap: '10px' }}>
+                        <input value={newVenue} onChange={e => setNewVenue(e.target.value)} placeholder="新增場地" />
+                        <button type="button" className="btn btn-primary" onClick={add}>新增</button>
+                    </div>
+                    {venues.map(v => (
+                        <div key={v} className="client-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span>{v}</span>
+                            <button className="btn btn-danger" onClick={() => remove(v)}>刪除</button>
+                        </div>
+                    ))}
+                </div>
+            );
+        };
+
+        const AdminSettings = ({ users, setUsers, venues, setVenues }) => (
+            <div>
+                <ManageVenues venues={venues} setVenues={setVenues} />
+                <ManageUsers users={users} setUsers={setUsers} />
+            </div>
+        );
+
         // 主應用程式組件
         const App = () => {
-            const [userRole, setUserRole] = useState(null);
-            const [activeTab, setActiveTab] = useState('clients');
+            const [currentUser, setCurrentUser] = useState(null);
+            const [activeTab, setActiveTab] = useState('');
             const [clients, setClients] = useLocalStorage('clients', []);
             const [bookings, setBookings] = useLocalStorage('bookings', []);
             const [psychologists, setPsychologists] = useLocalStorage('psychologists', []);
+            const [users, setUsers] = useLocalStorage('users', []);
+            const [venues, setVenues] = useLocalStorage('venues', []);
             const [notification, setNotification] = useState(null);
 
             const showNotification = (message, type = 'success') => {
@@ -1350,6 +1540,19 @@
 
             // 初始化示例數據
             useEffect(() => {
+                if (users.length === 0) {
+                    const sampleUsers = [
+                        { id: 1, username: 'admin', password: 'admin123', role: 'admin', name: '管理員' },
+                        { id: 2, username: 'therapist', password: 'therapist123', role: 'therapist', name: '張心理師' },
+                        { id: 3, username: 'client', password: 'client123', role: 'client', name: '王小明' }
+                    ];
+                    setUsers(sampleUsers);
+                }
+
+                if (venues.length === 0) {
+                    setVenues(['諮商室A', '諮商室B', '諮商室C']);
+                }
+
                 if (clients.length === 0) {
                     const sampleClients = [
                         {
@@ -1431,16 +1634,35 @@
                 }
             }, []);
 
-            const tabs = [
-                { id: 'clients', label: '個案管理', icon: '👤' },
-                { id: 'booking', label: '場地預約', icon: '📅' },
-                { id: 'therapists', label: '心理師管理', icon: '🧑‍⚕️' },
-                { id: 'notifications', label: '通知系統', icon: '🔔' },
-                { id: 'statistics', label: '統計分析', icon: '📊' }
-            ];
+            const tabs = React.useMemo(() => {
+                if (!currentUser) return [];
+                if (currentUser.role === 'admin') {
+                    return [
+                        { id: 'clients', label: '個案管理', icon: '👤' },
+                        { id: 'booking', label: '場地預約', icon: '📅' },
+                        { id: 'therapists', label: '心理師管理', icon: '🧑‍⚕️' },
+                        { id: 'notifications', label: '通知系統', icon: '🔔' },
+                        { id: 'statistics', label: '統計分析', icon: '📊' },
+                        { id: 'settings', label: '系統設定', icon: '⚙️' }
+                    ];
+                }
+                if (currentUser.role === 'therapist') {
+                    return [
+                        { id: 'schedule', label: '預約列表', icon: '📅' },
+                        { id: 'profile', label: '帳號設定', icon: '👤' }
+                    ];
+                }
+                return [{ id: 'my', label: '我的預約', icon: '📅' }];
+            }, [currentUser]);
 
-            if (!userRole) {
-                return <Login onLogin={setUserRole} />;
+            useEffect(() => {
+                if (tabs.length && !tabs.find(t => t.id === activeTab)) {
+                    setActiveTab(tabs[0].id);
+                }
+            }, [tabs]);
+
+            if (!currentUser) {
+                return <Login onLogin={setCurrentUser} users={users} />;
             }
 
             return (
@@ -1474,41 +1696,58 @@
                     </div>
 
                     <div className="content-section">
-                        {activeTab === 'clients' && (
-                            <ClientManagement 
+                        {currentUser.role === 'admin' && activeTab === 'clients' && (
+                            <ClientManagement
                                 clients={clients}
                                 setClients={setClients}
                                 showNotification={showNotification}
                             />
                         )}
-                        
-                        {activeTab === 'booking' && (
+
+                        {currentUser.role === 'admin' && activeTab === 'booking' && (
                             <VenueBooking
                                 bookings={bookings}
                                 setBookings={setBookings}
                                 clients={clients}
                                 psychologists={psychologists}
+                                venues={venues}
                                 showNotification={showNotification}
                             />
                         )}
 
-                        {activeTab === 'therapists' && (
+                        {currentUser.role === 'admin' && activeTab === 'therapists' && (
                             <PsychologistManagement psychologists={psychologists} bookings={bookings} />
                         )}
 
-                        {activeTab === 'notifications' && (
+                        {currentUser.role === 'admin' && activeTab === 'notifications' && (
                             <NotificationSystem
                                 bookings={bookings}
                                 clients={clients}
                                 showNotification={showNotification}
                             />
                         )}
-                        
-                        {activeTab === 'statistics' && (
-                            <StatisticsAnalysis 
+
+                        {currentUser.role === 'admin' && activeTab === 'statistics' && (
+                            <StatisticsAnalysis
                                 clients={clients}
                                 bookings={bookings}
                             />
+                        )}
+
+                        {currentUser.role === 'admin' && activeTab === 'settings' && (
+                            <AdminSettings users={users} setUsers={setUsers} venues={venues} setVenues={setVenues} />
+                        )}
+
+                        {currentUser.role === 'client' && activeTab === 'my' && (
+                            <MyBookings bookings={bookings} user={currentUser} />
+                        )}
+
+                        {currentUser.role === 'therapist' && activeTab === 'schedule' && (
+                            <TherapistSchedule bookings={bookings} user={currentUser} />
+                        )}
+
+                        {currentUser.role === 'therapist' && activeTab === 'profile' && (
+                            <TherapistProfile user={currentUser} users={users} setUsers={setUsers} onUpdate={setCurrentUser} />
                         )}
                     </div>
                 </div>
