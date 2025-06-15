@@ -419,6 +419,30 @@
             );
         };
 
+        const Login = ({ onLogin }) => {
+            const [role, setRole] = useState('admin');
+            const handleLogin = (e) => {
+                e.preventDefault();
+                onLogin(role);
+            };
+            return (
+                <div className="content-section">
+                    <h2>登入</h2>
+                    <form onSubmit={handleLogin}>
+                        <div className="form-group">
+                            <label>選擇角色</label>
+                            <select value={role} onChange={(e) => setRole(e.target.value)}>
+                                <option value="admin">管理員</option>
+                                <option value="therapist">心理師</option>
+                                <option value="client">個案</option>
+                            </select>
+                        </div>
+                        <button type="submit" className="btn btn-primary">登入</button>
+                    </form>
+                </div>
+            );
+        };
+
         // 個案管理組件
         const ClientManagement = ({ clients, setClients, showNotification }) => {
             const [searchTerm, setSearchTerm] = useState('');
@@ -431,7 +455,8 @@
                 phone: '',
                 email: '',
                 complaint: '',
-                notes: ''
+                notes: '',
+                record: ''
             });
 
             const filteredClients = clients.filter(client =>
@@ -466,7 +491,8 @@
                     phone: '',
                     email: '',
                     complaint: '',
-                    notes: ''
+                    notes: '',
+                    record: ''
                 });
                 setEditingClient(null);
                 setShowModal(false);
@@ -474,7 +500,7 @@
 
             const handleEdit = (client) => {
                 setEditingClient(client);
-                setFormData(client);
+                setFormData({ ...client, record: client.record || '' });
                 setShowModal(true);
             };
 
@@ -515,6 +541,7 @@
                                         <p><strong>Email：</strong>{client.email}</p>
                                         <p><strong>主訴：</strong>{client.complaint}</p>
                                         {client.notes && <p><strong>備註：</strong>{client.notes}</p>}
+                                        {client.record && <p><strong>紀錄：</strong>{client.record}</p>}
                                         <p style={{ color: '#666', fontSize: '0.9rem', marginTop: '10px' }}>
                                             建立日期：{client.createdAt}
                                         </p>
@@ -608,6 +635,14 @@
                                             onChange={(e) => setFormData({...formData, notes: e.target.value})}
                                         />
                                     </div>
+                                    <div className="form-group">
+                                        <label>病歷/諮商紀錄</label>
+                                        <textarea
+                                            rows="3"
+                                            value={formData.record}
+                                            onChange={(e) => setFormData({...formData, record: e.target.value})}
+                                        />
+                                    </div>
                                     <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
                                         <button type="button" className="btn" onClick={() => setShowModal(false)}>
                                             取消
@@ -625,10 +660,15 @@
         };
 
         // 場地預約組件
-        const VenueBooking = ({ bookings, setBookings, clients, showNotification }) => {
+        const VenueBooking = ({ bookings, setBookings, clients, psychologists, showNotification }) => {
             const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
             const [selectedTime, setSelectedTime] = useState('');
             const [selectedClient, setSelectedClient] = useState('');
+            const [selectedPsych, setSelectedPsych] = useState('');
+            const [selectedVenue, setSelectedVenue] = useState('諮商室A');
+            const [fee, setFee] = useState(2000);
+            const [paid, setPaid] = useState(false);
+            const [online, setOnline] = useState(false);
             const [notes, setNotes] = useState('');
             const [currentMonth, setCurrentMonth] = useState(new Date());
 
@@ -655,9 +695,9 @@
                 return days;
             };
 
-            const isTimeSlotBooked = (date, time) => {
-                return bookings.some(booking => 
-                    booking.date === date && booking.time === time
+            const isTimeSlotBooked = (date, time, venue) => {
+                return bookings.some(booking =>
+                    booking.date === date && booking.time === time && booking.venue === venue
                 );
             };
 
@@ -672,18 +712,25 @@
                     return;
                 }
 
-                if (isTimeSlotBooked(selectedDate, selectedTime)) {
+                if (isTimeSlotBooked(selectedDate, selectedTime, selectedVenue)) {
                     showNotification('此時段已被預約', 'error');
                     return;
                 }
 
                 const client = clients.find(c => c.id.toString() === selectedClient);
+                const psych = psychologists.find(p => p.id.toString() === selectedPsych);
                 const newBooking = {
                     id: Date.now(),
                     date: selectedDate,
                     time: selectedTime,
                     clientId: selectedClient,
                     clientName: client?.name || '',
+                    psychologistId: selectedPsych,
+                    psychologistName: psych?.name || '',
+                    venue: selectedVenue,
+                    fee: Number(fee),
+                    paid: paid,
+                    videoLink: online ? `https://meet.example.com/${Date.now()}` : '',
                     notes: notes,
                     status: '已預約',
                     createdAt: new Date().toLocaleString('zh-TW')
@@ -695,7 +742,10 @@
                 // 清空表單
                 setSelectedTime('');
                 setSelectedClient('');
+                setSelectedPsych('');
                 setNotes('');
+                setPaid(false);
+                setOnline(false);
             };
 
             const handleCancelBooking = (bookingId) => {
@@ -738,10 +788,10 @@
                                             <div
                                                 key={time}
                                                 className={`time-slot ${
-                                                    isTimeSlotBooked(selectedDate, time) ? 'booked' : ''
+                                                    isTimeSlotBooked(selectedDate, time, selectedVenue) ? 'booked' : ''
                                                 } ${selectedTime === time ? 'selected' : ''}`}
                                                 onClick={() => {
-                                                    if (!isTimeSlotBooked(selectedDate, time)) {
+                                                    if (!isTimeSlotBooked(selectedDate, time, selectedVenue)) {
                                                         setSelectedTime(time);
                                                     }
                                                 }}
@@ -766,6 +816,50 @@
                                             </option>
                                         ))}
                                     </select>
+                                </div>
+
+                                <div className="form-group">
+                                    <label>選擇心理師 *</label>
+                                    <select
+                                        required
+                                        value={selectedPsych}
+                                        onChange={(e) => setSelectedPsych(e.target.value)}
+                                    >
+                                        <option value="">請選擇心理師</option>
+                                        {psychologists.map(p => (
+                                            <option key={p.id} value={p.id}>{p.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                <div className="form-group">
+                                    <label>選擇場地 *</label>
+                                    <select
+                                        required
+                                        value={selectedVenue}
+                                        onChange={(e) => setSelectedVenue(e.target.value)}
+                                    >
+                                        <option value="諮商室A">諮商室A</option>
+                                        <option value="諮商室B">諮商室B</option>
+                                        <option value="諮商室C">諮商室C</option>
+                                    </select>
+                                </div>
+
+                                <div className="form-group">
+                                    <label>費用</label>
+                                    <input type="number" value={fee} onChange={(e)=>setFee(e.target.value)} />
+                                </div>
+
+                                <div className="form-group">
+                                    <label>
+                                        <input type="checkbox" checked={paid} onChange={(e)=>setPaid(e.target.checked)} /> 已收費
+                                    </label>
+                                </div>
+
+                                <div className="form-group">
+                                    <label>
+                                        <input type="checkbox" checked={online} onChange={(e)=>setOnline(e.target.checked)} /> 線上諮商
+                                    </label>
                                 </div>
 
                                 <div className="form-group">
@@ -799,7 +893,11 @@
                                                 <div>
                                                     <h4 style={{ color: '#667eea' }}>{booking.time}</h4>
                                                     <p><strong>個案：</strong>{booking.clientName}</p>
+                                                    <p><strong>心理師：</strong>{booking.psychologistName}</p>
+                                                    <p><strong>場地：</strong>{booking.venue}</p>
                                                     <p><strong>狀態：</strong>{booking.status}</p>
+                                                    <p><strong>費用：</strong>NT$ {booking.fee}</p>
+                                                    <p><strong>已收費：</strong>{booking.paid ? '是' : '否'}</p>
                                                     {booking.notes && <p><strong>備註：</strong>{booking.notes}</p>}
                                                 </div>
                                                 <button 
@@ -957,10 +1055,49 @@
             );
         };
 
+        const PsychologistManagement = ({ psychologists, bookings }) => {
+            const getStats = (psych) => {
+                const psychBookings = bookings.filter(b => b.psychologistId === psych.id);
+                const clients = [...new Set(psychBookings.map(b => b.clientId))];
+                const retained = clients.filter(cid => psychBookings.filter(b => b.clientId === cid).length > 1);
+                const rate = clients.length > 0 ? Math.round((retained.length / clients.length) * 100) : 0;
+                return { cases: clients.length, rate };
+            };
+
+            return (
+                <div>
+                    <h2>心理師管理</h2>
+                    {psychologists.map(psych => {
+                        const s = getStats(psych);
+                        return (
+                            <div key={psych.id} className="client-card">
+                                <h3 style={{ color: '#667eea', marginBottom: '8px' }}>{psych.name}</h3>
+                                <p><strong>目前個案數：</strong>{s.cases}</p>
+                                <p><strong>留案率：</strong>{s.rate}%</p>
+                            </div>
+                        );
+                    })}
+                </div>
+            );
+        };
+
         // 統計分析組件
         const StatisticsAnalysis = ({ clients, bookings }) => {
             const chartRef = useRef(null);
             const pieChartRef = useRef(null);
+
+            const exportCSV = () => {
+                const headers = ['日期','時間','個案','心理師','場地','費用','已收費'];
+                const rows = bookings.map(b => [b.date, b.time, b.clientName, b.psychologistName, b.venue, b.fee, b.paid ? '是' : '否']);
+                const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = 'bookings.csv';
+                link.click();
+                URL.revokeObjectURL(url);
+            };
 
             // 計算統計數據
             const totalClients = clients.length;
@@ -977,8 +1114,12 @@
 
             // 費用計算
             const sessionFee = 2000; // 每次會談費用
-            const totalRevenue = totalBookings * sessionFee;
-            const thisMonthRevenue = thisMonthBookings * sessionFee;
+            const totalRevenue = bookings.reduce((acc, b) => acc + (Number(b.fee) || sessionFee), 0);
+            const thisMonthRevenue = bookings.filter(b => {
+                const d = new Date(b.date);
+                const m = new Date();
+                return d.getMonth() === m.getMonth() && d.getFullYear() === m.getFullYear();
+            }).reduce((acc, b) => acc + (Number(b.fee) || sessionFee), 0);
 
             useEffect(() => {
                 // 月度預約趨勢圖
@@ -1121,6 +1262,9 @@
                     {/* 詳細報表 */}
                     <div className="content-section" style={{ marginTop: '30px' }}>
                         <h3>預約詳細記錄</h3>
+                        <button className="btn btn-primary" onClick={exportCSV} style={{ marginBottom: '10px' }}>
+                            匯出 CSV
+                        </button>
                         <div style={{ overflowX: 'auto' }}>
                             <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '20px' }}>
                                 <thead>
@@ -1128,8 +1272,11 @@
                                         <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #667eea' }}>日期</th>
                                         <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #667eea' }}>時間</th>
                                         <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #667eea' }}>個案姓名</th>
+                                        <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #667eea' }}>心理師</th>
+                                        <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #667eea' }}>場地</th>
                                         <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #667eea' }}>狀態</th>
                                         <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #667eea' }}>費用</th>
+                                        <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #667eea' }}>已收費</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -1138,18 +1285,21 @@
                                             <td style={{ padding: '12px', borderBottom: '1px solid #eee' }}>{booking.date}</td>
                                             <td style={{ padding: '12px', borderBottom: '1px solid #eee' }}>{booking.time}</td>
                                             <td style={{ padding: '12px', borderBottom: '1px solid #eee' }}>{booking.clientName}</td>
+                                            <td style={{ padding: '12px', borderBottom: '1px solid #eee' }}>{booking.psychologistName}</td>
+                                            <td style={{ padding: '12px', borderBottom: '1px solid #eee' }}>{booking.venue}</td>
                                             <td style={{ padding: '12px', borderBottom: '1px solid #eee' }}>
-                                                <span style={{ 
-                                                    padding: '4px 8px', 
-                                                    borderRadius: '12px', 
-                                                    backgroundColor: '#e8f5e8', 
+                                                <span style={{
+                                                    padding: '4px 8px',
+                                                    borderRadius: '12px',
+                                                    backgroundColor: '#e8f5e8',
                                                     color: '#2e7d32',
                                                     fontSize: '0.9rem'
                                                 }}>
                                                     {booking.status}
                                                 </span>
                                             </td>
-                                            <td style={{ padding: '12px', borderBottom: '1px solid #eee' }}>NT$ {sessionFee.toLocaleString()}</td>
+                                            <td style={{ padding: '12px', borderBottom: '1px solid #eee' }}>NT$ {booking.fee}</td>
+                                            <td style={{ padding: '12px', borderBottom: '1px solid #eee' }}>{booking.paid ? '是' : '否'}</td>
                                         </tr>
                                     ))}
                                 </tbody>
@@ -1162,9 +1312,11 @@
 
         // 主應用程式組件
         const App = () => {
+            const [userRole, setUserRole] = useState(null);
             const [activeTab, setActiveTab] = useState('clients');
             const [clients, setClients] = useLocalStorage('clients', []);
             const [bookings, setBookings] = useLocalStorage('bookings', []);
+            const [psychologists, setPsychologists] = useLocalStorage('psychologists', []);
             const [notification, setNotification] = useState(null);
 
             const showNotification = (message, type = 'success') => {
@@ -1188,6 +1340,7 @@
                             email: 'wang@example.com',
                             complaint: '工作壓力過大，經常失眠',
                             notes: '需要壓力管理技巧',
+                            record: '',
                             createdAt: '2024/12/15'
                         },
                         {
@@ -1199,10 +1352,19 @@
                             email: 'li@example.com',
                             complaint: '人際關係困擾',
                             notes: '與同事相處有困難',
+                            record: '',
                             createdAt: '2024/12/10'
                         }
                     ];
                     setClients(sampleClients);
+                }
+
+                if (psychologists.length === 0) {
+                    const sampleTherapists = [
+                        { id: 1, name: '張心理師' },
+                        { id: 2, name: '陳心理師' }
+                    ];
+                    setPsychologists(sampleTherapists);
                 }
 
                 if (bookings.length === 0) {
@@ -1217,6 +1379,12 @@
                             time: '14:00',
                             clientId: '1',
                             clientName: '王小明',
+                            venue: '諮商室A',
+                            psychologistId: 1,
+                            psychologistName: '張心理師',
+                            fee: 2000,
+                            paid: true,
+                            videoLink: '',
                             notes: '第二次會談',
                             status: '已預約',
                             createdAt: new Date().toLocaleString('zh-TW')
@@ -1227,6 +1395,12 @@
                             time: '16:00',
                             clientId: '2',
                             clientName: '李小華',
+                            venue: '諮商室B',
+                            psychologistId: 2,
+                            psychologistName: '陳心理師',
+                            fee: 2000,
+                            paid: false,
+                            videoLink: '',
                             notes: '初次會談',
                             status: '已預約',
                             createdAt: new Date().toLocaleString('zh-TW')
@@ -1239,9 +1413,14 @@
             const tabs = [
                 { id: 'clients', label: '個案管理', icon: '👤' },
                 { id: 'booking', label: '場地預約', icon: '📅' },
+                { id: 'therapists', label: '心理師管理', icon: '🧑‍⚕️' },
                 { id: 'notifications', label: '通知系統', icon: '🔔' },
                 { id: 'statistics', label: '統計分析', icon: '📊' }
             ];
+
+            if (!userRole) {
+                return <Login onLogin={setUserRole} />;
+            }
 
             return (
                 <div className="container">
@@ -1283,16 +1462,21 @@
                         )}
                         
                         {activeTab === 'booking' && (
-                            <VenueBooking 
+                            <VenueBooking
                                 bookings={bookings}
                                 setBookings={setBookings}
                                 clients={clients}
+                                psychologists={psychologists}
                                 showNotification={showNotification}
                             />
                         )}
-                        
+
+                        {activeTab === 'therapists' && (
+                            <PsychologistManagement psychologists={psychologists} bookings={bookings} />
+                        )}
+
                         {activeTab === 'notifications' && (
-                            <NotificationSystem 
+                            <NotificationSystem
                                 bookings={bookings}
                                 clients={clients}
                                 showNotification={showNotification}
