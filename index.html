@@ -961,6 +961,8 @@
         const StatisticsAnalysis = ({ clients, bookings }) => {
             const chartRef = useRef(null);
             const pieChartRef = useRef(null);
+            const chartInstanceRef = useRef(null);
+            const pieChartInstanceRef = useRef(null);
 
             // 計算統計數據
             const totalClients = clients.length;
@@ -983,6 +985,9 @@
             useEffect(() => {
                 // 月度預約趨勢圖
                 if (chartRef.current) {
+                    if (chartInstanceRef.current) {
+                        chartInstanceRef.current.destroy();
+                    }
                     const ctx = chartRef.current.getContext('2d');
                     
                     // 生成過去6個月的數據
@@ -998,7 +1003,7 @@
                         bookingCounts.push(Math.floor(Math.random() * 20) + 5);
                     }
 
-                    new Chart(ctx, {
+                    chartInstanceRef.current = new Chart(ctx, {
                         type: 'line',
                         data: {
                             labels: months,
@@ -1030,6 +1035,9 @@
 
                 // 性別分布圓餅圖
                 if (pieChartRef.current) {
+                    if (pieChartInstanceRef.current) {
+                        pieChartInstanceRef.current.destroy();
+                    }
                     const ctx = pieChartRef.current.getContext('2d');
                     
                     const genderCount = clients.reduce((acc, client) => {
@@ -1037,7 +1045,7 @@
                         return acc;
                     }, {});
 
-                    new Chart(ctx, {
+                    pieChartInstanceRef.current = new Chart(ctx, {
                         type: 'pie',
                         data: {
                             labels: Object.keys(genderCount),
@@ -1062,6 +1070,11 @@
                         }
                     });
                 }
+
+                return () => {
+                    if (chartInstanceRef.current) chartInstanceRef.current.destroy();
+                    if (pieChartInstanceRef.current) pieChartInstanceRef.current.destroy();
+                };
             }, [clients, bookings]);
 
             return (
