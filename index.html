@@ -683,11 +683,17 @@
         };
 
         // 場地預約組件
-        const VenueBooking = ({ bookings, setBookings, clients, psychologists, venues, showNotification }) => {
+        const VenueBooking = ({ bookings, setBookings, clients, psychologists, venues, showNotification, preselectedPsychId }) => {
             const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
             const [selectedTime, setSelectedTime] = useState('');
             const [selectedClient, setSelectedClient] = useState('');
             const [selectedPsych, setSelectedPsych] = useState('');
+
+            useEffect(() => {
+                if (preselectedPsychId) {
+                    setSelectedPsych(preselectedPsychId.toString());
+                }
+            }, [preselectedPsychId]);
             const [selectedVenue, setSelectedVenue] = useState(venues[0] || '');
             const [fee, setFee] = useState(2000);
             const [paid, setPaid] = useState(false);
@@ -1078,7 +1084,7 @@
             );
         };
 
-        const PsychologistManagement = ({ psychologists, bookings }) => {
+        const PsychologistManagement = ({ psychologists, bookings, onSelectPsych }) => {
             const getStats = (psych) => {
                 const psychBookings = bookings.filter(b => b.psychologistId === psych.id);
                 const clients = [...new Set(psychBookings.map(b => b.clientId))];
@@ -1093,10 +1099,17 @@
                     {psychologists.map(psych => {
                         const s = getStats(psych);
                         return (
-                            <div key={psych.id} className="client-card">
-                                <h3 style={{ color: '#667eea', marginBottom: '8px' }}>{psych.name}</h3>
-                                <p><strong>目前個案數：</strong>{s.cases}</p>
-                                <p><strong>留案率：</strong>{s.rate}%</p>
+                            <div key={psych.id} className="client-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <div>
+                                    <h3 style={{ color: '#667eea', marginBottom: '8px' }}>{psych.name}</h3>
+                                    <p><strong>目前個案數：</strong>{s.cases}</p>
+                                    <p><strong>留案率：</strong>{s.rate}%</p>
+                                </div>
+                                {onSelectPsych && (
+                                    <button className="btn btn-success" onClick={() => onSelectPsych(psych.id)}>
+                                        預約
+                                    </button>
+                                )}
                             </div>
                         );
                     })}
@@ -1528,6 +1541,7 @@
             const [psychologists, setPsychologists] = useLocalStorage('psychologists', []);
             const [users, setUsers] = useLocalStorage('users', []);
             const [venues, setVenues] = useLocalStorage('venues', []);
+            const [bookingPsychId, setBookingPsychId] = useState(null);
             const [notification, setNotification] = useState(null);
 
             const showNotification = (message, type = 'success') => {
@@ -1536,6 +1550,11 @@
 
             const closeNotification = () => {
                 setNotification(null);
+            };
+
+            const handleSelectPsych = (id) => {
+                setBookingPsychId(id);
+                setActiveTab('booking');
             };
 
             // 初始化示例數據
@@ -1712,11 +1731,12 @@
                                 psychologists={psychologists}
                                 venues={venues}
                                 showNotification={showNotification}
+                                preselectedPsychId={bookingPsychId}
                             />
                         )}
 
                         {currentUser.role === 'admin' && activeTab === 'therapists' && (
-                            <PsychologistManagement psychologists={psychologists} bookings={bookings} />
+                            <PsychologistManagement psychologists={psychologists} bookings={bookings} onSelectPsych={handleSelectPsych} />
                         )}
 
                         {currentUser.role === 'admin' && activeTab === 'notifications' && (
