@@ -660,7 +660,7 @@
         };
 
         // 場地預約組件
-        const VenueBooking = ({ bookings, setBookings, clients, psychologists, showNotification }) => {
+        const VenueBooking = ({ bookings, setBookings, clients, psychologists, showNotification, preselectedPsychId }) => {
             const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
             const [selectedTime, setSelectedTime] = useState('');
             const [selectedClient, setSelectedClient] = useState('');
@@ -671,6 +671,12 @@
             const [online, setOnline] = useState(false);
             const [notes, setNotes] = useState('');
             const [currentMonth, setCurrentMonth] = useState(new Date());
+
+            useEffect(() => {
+                if (preselectedPsychId) {
+                    setSelectedPsych(preselectedPsychId.toString());
+                }
+            }, [preselectedPsychId]);
 
             const timeSlots = [
                 '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', 
@@ -1055,7 +1061,21 @@
             );
         };
 
-        const PsychologistManagement = ({ psychologists, bookings }) => {
+        const PsychologistManagement = ({ psychologists, setPsychologists, bookings, onSelectPsych, userRole }) => {
+            const [showModal, setShowModal] = useState(false);
+            const [editingPsych, setEditingPsych] = useState(null);
+            const [formData, setFormData] = useState({
+                name: '',
+                expertise: '',
+                email: '',
+                phone: '',
+                intro: '',
+                photo: '',
+                availability: []
+            });
+            const [slotDate, setSlotDate] = useState('');
+            const [slotTime, setSlotTime] = useState('');
+
             const getStats = (psych) => {
                 const psychBookings = bookings.filter(b => b.psychologistId === psych.id);
                 const clients = [...new Set(psychBookings.map(b => b.clientId))];
@@ -1064,19 +1084,168 @@
                 return { cases: clients.length, rate };
             };
 
+            const resetForm = () => {
+                setFormData({
+                    name: '',
+                    expertise: '',
+                    email: '',
+                    phone: '',
+                    intro: '',
+                    photo: '',
+                    availability: []
+                });
+                setSlotDate('');
+                setSlotTime('');
+            };
+
+            const handleSubmit = (e) => {
+                e.preventDefault();
+                if (editingPsych) {
+                    setPsychologists(psychologists.map(p =>
+                        p.id === editingPsych.id ? { ...formData, id: editingPsych.id } : p
+                    ));
+                } else {
+                    const newPsych = { ...formData, id: Date.now() };
+                    setPsychologists([...psychologists, newPsych]);
+                }
+                setEditingPsych(null);
+                resetForm();
+                setShowModal(false);
+            };
+
+            const handleEdit = (psych) => {
+                setEditingPsych(psych);
+                setFormData({
+                    name: psych.name || '',
+                    expertise: psych.expertise || '',
+                    email: psych.email || '',
+                    phone: psych.phone || '',
+                    intro: psych.intro || '',
+                    photo: psych.photo || '',
+                    availability: psych.availability || []
+                });
+                setShowModal(true);
+            };
+
+            const handleDelete = (id) => {
+                if (confirm('確定要刪除此心理師資料嗎？')) {
+                    setPsychologists(psychologists.filter(p => p.id !== id));
+                }
+            };
+
+            const addSlot = () => {
+                if (slotDate && slotTime) {
+                    setFormData({
+                        ...formData,
+                        availability: [...formData.availability, { date: slotDate, time: slotTime }]
+                    });
+                    setSlotDate('');
+                    setSlotTime('');
+                }
+            };
+
+            const removeSlot = (idx) => {
+                setFormData({
+                    ...formData,
+                    availability: formData.availability.filter((_, i) => i !== idx)
+                });
+            };
+
             return (
                 <div>
-                    <h2>心理師管理</h2>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                        <h2>心理師資訊</h2>
+                        {userRole === 'admin' && (
+                            <button className="btn btn-primary" onClick={() => { resetForm(); setShowModal(true); }}>
+                                新增心理師
+                            </button>
+                        )}
+                    </div>
+
                     {psychologists.map(psych => {
                         const s = getStats(psych);
                         return (
-                            <div key={psych.id} className="client-card">
-                                <h3 style={{ color: '#667eea', marginBottom: '8px' }}>{psych.name}</h3>
-                                <p><strong>目前個案數：</strong>{s.cases}</p>
-                                <p><strong>留案率：</strong>{s.rate}%</p>
+                            <div key={psych.id} className="client-card" style={{ display: 'flex', gap: '20px' }}>
+                                {psych.photo && (
+                                    <img src={psych.photo} alt={psych.name} style={{ width: '100px', height: '100px', borderRadius: '50%', objectFit: 'cover' }} />
+                                )}
+                                <div style={{ flex: 1 }}>
+                                    <h3 style={{ color: '#667eea', marginBottom: '8px' }}>{psych.name}</h3>
+                                    {psych.expertise && <p><strong>專長：</strong>{psych.expertise}</p>}
+                                    {psych.intro && <p>{psych.intro}</p>}
+                                    {psych.email && <p><strong>Email：</strong>{psych.email}</p>}
+                                    {psych.phone && <p><strong>電話：</strong>{psych.phone}</p>}
+                                    {psych.availability && psych.availability.length > 0 && (
+                                        <p><strong>可預約時段：</strong>{psych.availability.map(a => `${a.date} ${a.time}`).join('、')}</p>
+                                    )}
+                                    <p style={{ marginTop: '10px' }}><strong>目前個案數：</strong>{s.cases} | <strong>留案率：</strong>{s.rate}%</p>
+                                </div>
+                                <div>
+                                    <button className="btn btn-success" onClick={() => onSelectPsych(psych.id)}>預約</button>
+                                    {userRole === 'admin' && (
+                                        <>
+                                            <button className="btn btn-primary" onClick={() => handleEdit(psych)}>編輯</button>
+                                            <button className="btn btn-danger" onClick={() => handleDelete(psych.id)}>刪除</button>
+                                        </>
+                                    )}
+                                </div>
                             </div>
                         );
                     })}
+
+                    {showModal && (
+                        <div className="modal" onClick={() => setShowModal(false)}>
+                            <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+                                <h3>{editingPsych ? '編輯心理師' : '新增心理師'}</h3>
+                                <form onSubmit={handleSubmit}>
+                                    <div className="form-group">
+                                        <label>姓名 *</label>
+                                        <input type="text" required value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} />
+                                    </div>
+                                    <div className="form-group">
+                                        <label>專長領域</label>
+                                        <input type="text" value={formData.expertise} onChange={e => setFormData({ ...formData, expertise: e.target.value })} />
+                                    </div>
+                                    <div className="form-row">
+                                        <div className="form-group">
+                                            <label>Email</label>
+                                            <input type="email" value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })} />
+                                        </div>
+                                        <div className="form-group">
+                                            <label>電話</label>
+                                            <input type="tel" value={formData.phone} onChange={e => setFormData({ ...formData, phone: e.target.value })} />
+                                        </div>
+                                    </div>
+                                    <div className="form-group">
+                                        <label>照片網址</label>
+                                        <input type="text" value={formData.photo} onChange={e => setFormData({ ...formData, photo: e.target.value })} />
+                                    </div>
+                                    <div className="form-group">
+                                        <label>簡介</label>
+                                        <textarea rows="3" value={formData.intro} onChange={e => setFormData({ ...formData, intro: e.target.value })}></textarea>
+                                    </div>
+                                    <div className="form-group">
+                                        <label>新增可預約時段</label>
+                                        <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
+                                            <input type="date" value={slotDate} onChange={e => setSlotDate(e.target.value)} />
+                                            <input type="time" value={slotTime} onChange={e => setSlotTime(e.target.value)} />
+                                            <button type="button" className="btn btn-primary" onClick={addSlot}>加入</button>
+                                        </div>
+                                        {formData.availability.map((a, idx) => (
+                                            <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
+                                                <span>{a.date} {a.time}</span>
+                                                <button type="button" className="btn btn-danger" onClick={() => removeSlot(idx)}>移除</button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                                        <button type="button" className="btn" onClick={() => setShowModal(false)}>取消</button>
+                                        <button type="submit" className="btn btn-primary">{editingPsych ? '更新' : '新增'}</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    )}
                 </div>
             );
         };
@@ -1338,6 +1507,7 @@
             const [clients, setClients] = useLocalStorage('clients', []);
             const [bookings, setBookings] = useLocalStorage('bookings', []);
             const [psychologists, setPsychologists] = useLocalStorage('psychologists', []);
+            const [bookingPsychId, setBookingPsychId] = useState(null);
             const [notification, setNotification] = useState(null);
 
             const showNotification = (message, type = 'success') => {
@@ -1348,8 +1518,17 @@
                 setNotification(null);
             };
 
+            const handleSelectPsych = (id) => {
+                setBookingPsychId(id);
+                setActiveTab('booking');
+            };
+
             // 初始化示例數據
             useEffect(() => {
+                const today = new Date();
+                const tomorrow = new Date(today);
+                tomorrow.setDate(tomorrow.getDate() + 1);
+
                 if (clients.length === 0) {
                     const sampleClients = [
                         {
@@ -1382,16 +1561,35 @@
 
                 if (psychologists.length === 0) {
                     const sampleTherapists = [
-                        { id: 1, name: '張心理師' },
-                        { id: 2, name: '陳心理師' }
+                        {
+                            id: 1,
+                            name: '張心理師',
+                            expertise: '憂鬱症、焦慮症',
+                            intro: '具有多年臨床經驗，專長於情緒障礙治療。',
+                            email: 'chang@example.com',
+                            phone: '0911-111-111',
+                            photo: 'https://via.placeholder.com/100',
+                            availability: [
+                                { date: today.toISOString().split('T')[0], time: '15:00' }
+                            ]
+                        },
+                        {
+                            id: 2,
+                            name: '陳心理師',
+                            expertise: '家庭諮商',
+                            intro: '擅長家庭與伴侶諮商。',
+                            email: 'chen@example.com',
+                            phone: '0922-222-222',
+                            photo: 'https://via.placeholder.com/100',
+                            availability: [
+                                { date: tomorrow.toISOString().split('T')[0], time: '10:00' }
+                            ]
+                        }
                     ];
                     setPsychologists(sampleTherapists);
                 }
 
                 if (bookings.length === 0) {
-                    const today = new Date();
-                    const tomorrow = new Date(today);
-                    tomorrow.setDate(tomorrow.getDate() + 1);
                     
                     const sampleBookings = [
                         {
@@ -1489,11 +1687,18 @@
                                 clients={clients}
                                 psychologists={psychologists}
                                 showNotification={showNotification}
+                                preselectedPsychId={bookingPsychId}
                             />
                         )}
 
                         {activeTab === 'therapists' && (
-                            <PsychologistManagement psychologists={psychologists} bookings={bookings} />
+                            <PsychologistManagement
+                                psychologists={psychologists}
+                                setPsychologists={setPsychologists}
+                                bookings={bookings}
+                                onSelectPsych={handleSelectPsych}
+                                userRole={userRole}
+                            />
                         )}
 
                         {activeTab === 'notifications' && (
